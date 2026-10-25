@@ -143,6 +143,8 @@ input[type=range]{width:100%;padding:0;border:0;background:transparent;accent-co
 .simtools select{max-width:100%}
 .stale{font-size:12px;color:var(--warn);font-weight:600}
 .ins .tbl{min-width:0;table-layout:fixed}
+.c-por{width:72px}.c-pre{width:104px}.c-del{width:32px}
+.foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
 .ins .tbl td,.ins .tbl th{padding-left:4px;padding-right:4px}
 .ins td input,.ins td select{width:100%}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
@@ -158,6 +160,49 @@ input[type=range]{width:100%;padding:0;border:0;background:transparent;accent-co
   .tbl.res td[data-label]::before{content:attr(data-label);font-family:var(--f-body);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:650}
   .tbl.res .fc{align-items:flex-start}
   .tbl.res .price-in{width:110px;text-align:left}
+}
+/* compacto en celu */
+@media (max-width:620px){
+  body{font-size:14px}
+  .wrap{padding-block:10px 40px}
+  .top{padding-bottom:6px;gap:4px}
+  .eyebrow{font-size:10px}
+  h1{font-size:24px}
+  h2{font-size:18px}
+  .status{font-size:11px}
+  .tabs{margin-bottom:10px}
+  .tabs button{padding:8px 10px 9px;font-size:14px}
+  .stack{gap:10px}
+  .card{padding:10px 12px;border-radius:8px}
+  .chips{flex-wrap:nowrap;overflow-x:auto;gap:6px;scrollbar-width:none;margin-inline:-2px;padding-inline:2px}
+  .chip{padding:4px 11px;font-size:13px}
+  .seg button{padding:4px 10px;font-size:12px}
+  .ctrls{gap:8px}
+  .fld{font-size:12px;gap:6px}
+  input,select,textarea{padding:5px 7px;font-size:14px}
+  .price-in{width:84px}
+  .btn.sm{padding:4px 8px;font-size:12px}
+  .acts{margin-left:auto;gap:6px}
+  .price-in{width:76px}
+  .line{grid-template-columns:minmax(0,1fr) 72px 62px 30px 22px;grid-template-areas:"sel qty cost share del";gap:6px;padding:5px 0}
+  .ing{font-size:13px;font-weight:550;line-height:1.2}
+  .qty{gap:3px}
+  .qty input{width:52px;padding:4px 5px;font-size:13px}
+  .unit{width:14px;font-size:11px}
+  .line .cost{font-size:12px}
+  .share{font-size:11px}
+  .icon{width:22px;height:22px;font-size:16px}
+  .addsel{font-size:13px;padding:5px 8px}
+  .totals{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .totals>div{padding:7px 8px;gap:1px}
+  .totals .k{font-size:10px;letter-spacing:.04em}
+  .totals .v,.totals .v.big{font-size:15px}
+  .hint{font-size:12px}
+  .ins .tbl td{padding-top:3px;padding-bottom:3px}
+  .ins .hint{display:none}
+  .c-por{width:54px}.c-pre{width:84px}.c-del{width:24px}
+  .ins td select{padding-left:4px;padding-right:2px}
+  .ins .tbl th{padding-top:4px;padding-bottom:4px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -185,7 +230,7 @@ function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth
 let real=null, sim=null, docRef=null, loaded=false, dbOk=false;
 let saving=false, dirty=false, saveTimer=null, lastEdit=0, lastSavedJson='';
 const UI_KEY='costos-ui';
-let ui={tab:'resumen',sang:null,size:'M',prep:null,modo:'delivery',q:''};
+let ui={tab:'sanguches',sang:null,size:'M',prep:null,modo:'delivery',q:''};
 try{Object.assign(ui,JSON.parse(localStorage.getItem(UI_KEY)||'{}'))}catch(e){}
 function saveUi(){try{localStorage.setItem(UI_KEY,JSON.stringify(ui))}catch(e){}}
 const cur=()=>sim||real;
@@ -394,9 +439,10 @@ function numInput(id,get,set,cls='num'){
 }
 
 /* ---------- render ---------- */
-const TABS=[['resumen','Resumen'],['sanguches','Sanguches'],['insumos','Insumos'],['empaque','Empaque']];
+const TABS=[['sanguches','Sanguches'],['insumos','Insumos'],['empaque','Empaque']];
 function render(){
   outs=[];
+  if(!TABS.some(t=>t[0]===ui.tab))ui.tab='sanguches';
   document.getElementById('wrap').classList.toggle('sim-on',!!sim);
   const tabs=document.getElementById('tabs');
   tabs.replaceChildren(...TABS.map(([k,l])=>h('button',{type:'button','aria-current':ui.tab===k?'page':null,onclick:()=>{ui.tab=k;saveUi();render();window.scrollTo({top:0})}},l)));
@@ -404,7 +450,7 @@ function render(){
   if(!real){main.append(loaded?emptyState():h('p',{class:'empty'},'Cargando tus datos…'));return}
   const box=h('div',{class:'stack'});
   if(sim)box.append(simBar());
-  box.append(({resumen:vResumen,sanguches:vSang,insumos:vInsumos,empaque:vEmpaque}[ui.tab]||vResumen)());
+  box.append(({sanguches:vSang,insumos:vInsumos,empaque:vEmpaque}[ui.tab]||vSang)());
   main.append(box);
 }
 function emptyState(){
@@ -518,18 +564,16 @@ function vSang(){
   const tot=()=>totalCost(st,s,z);
   const card=h('div',{class:'card stack'},
     h('div',{class:'ctrls'},cat==='ciabatta'?null:seg([['M','M'],['XL','XL']],z,x=>{ui.size=x;saveUi();render()}),
-      h('label',{class:'fld',for:'pv2-'+s.id+'-'+z},'Precio de venta',numInput('pv2-'+s.id+'-'+z,()=>v.precio,x=>{v.precio=x},'num price-in')),
-      z==='XL'?confirmBtn('Copiar receta de M',()=>{v.lineas=clone(s.variantes.M.lineas);edit();render()},'btn ghost sm'):null,
-      h('div',{class:'ctrls acts'},h('button',{type:'button',class:'btn ghost sm',onclick:()=>{const c=clone(s);c.id=uid();c.nombre=siguiente(st,cat);st.sanguches.push(c);ui.sang=c.id;edit();saveUi();render()}},'Duplicar'),
-        confirmBtn('Borrar',()=>{st.sanguches=st.sanguches.filter(x=>x.id!==s.id);ui.sang=null;edit();saveUi();render()}))),
+      h('label',{class:'fld',for:'pv2-'+s.id+'-'+z},'Precio',numInput('pv2-'+s.id+'-'+z,()=>v.precio,x=>{v.precio=x},'num price-in')),
+      z==='XL'?confirmBtn('Copiar receta de M',()=>{v.lineas=clone(s.variantes.M.lineas);edit();render()},'btn ghost sm'):null),
     linesEditor(v.lineas,false,'sl-'+s.id+'-'+z),
     h('div',{class:'totals'},
-      h('div',null,h('span',{class:'k'},'Receta'),out(()=>fmt(recetaCost(st,s,z)),'v')),
-      h('div',null,h('span',{class:'k'},'Empaque'),out(()=>fmt(empaqueCost(st,s)),'v')),
       h('div',null,h('span',{class:'k'},'Costo total'),out(()=>fmt(tot()),'v big'),wasNote(tot,()=>{const r=rs();return r?totalCost(real,r,z):null})),
       h('div',null,h('span',{class:'k'},'Food cost'),out(()=>{const r=v.precio>0?tot()/v.precio:0;return{t:pct(r),c:fcClass(r,st)}},'v big')),
       h('div',null,h('span',{class:'k'},'Margen'),out(()=>fmt(v.precio-tot()),'v'))),
-    h('p',{class:'hint'},'Las cantidades en unidades aceptan fracciones: escribí 1/23 si un atado rinde 23 sanguches.'));
+    h('div',{class:'foot'},out(()=>'Receta '+fmt(recetaCost(st,s,z))+' + empaque '+fmt(empaqueCost(st,s)),'hint'),h('div',{class:'ctrls acts'},h('button',{type:'button',class:'btn ghost sm',onclick:()=>{const c=clone(s);c.id=uid();c.nombre=siguiente(st,cat);st.sanguches.push(c);ui.sang=c.id;edit();saveUi();render()}},'Duplicar'),
+        confirmBtn('Borrar',()=>{st.sanguches=st.sanguches.filter(x=>x.id!==s.id);ui.sang=null;edit();saveUi();render()}))),
+    null);
   return h('div',{class:'stack'},sub,chips,card);
 }
 
@@ -586,7 +630,7 @@ function vInsumos(){
     h('p',{class:'hint'},'Precio por kilo o por unidad, según cómo lo comprás. Un insumo que se usa en alguna receta no se puede borrar.'),
     h('div',{class:'ctrls'},search),
     h('div',{class:'scroll'},h('table',{class:'tbl'},
-      h('thead',null,h('tr',null,h('th',null,'Insumo'),h('th',{style:'width:72px'},'Por'),h('th',{style:'width:104px'},'Precio'),h('th',{style:'width:32px'},''))),tb)));
+      h('thead',null,h('tr',null,h('th',null,'Insumo'),h('th',{class:'c-por'},'Por'),h('th',{class:'c-pre'},'Precio'),h('th',{class:'c-del'},''))),tb)));
 }
 
 /* ---------- Empaque ---------- */
@@ -613,8 +657,10 @@ render();
     docRef={set:async b=>{localStorage.setItem(KEY,JSON.stringify(b))}};
     setStatus('Guardado solo en este dispositivo',true);render();return;
   }
-  firebase.initializeApp(cfg);
-  const fs=firebase.firestore();
+  const fallo=msg=>{setStatus('Error de conexión',true);const m=document.getElementById('main');m.replaceChildren(h('div',{class:'card stack'},h('h2',null,'No se pudo conectar con Firebase'),h('p',{class:'hint'},msg),h('p',{class:'hint'},'Revisá firebase-config.js (projectId y apiKey), que exista la base de Firestore y que las reglas permitan la colección costeo.')))};
+  if(typeof firebase==='undefined'){fallo('No cargó la librería de Firebase. Revisá tu conexión a internet.');return}
+  setTimeout(()=>{if(!loaded)fallo('Firebase no respondió en 10 segundos. Suele pasar cuando la base de Firestore no está creada o el projectId no coincide.')},10000);
+  let fs;try{firebase.initializeApp(cfg);fs=firebase.firestore()}catch(e){fallo('Error al iniciar: '+(e&&e.message||e));return}
   const ref=fs.collection('costeo').doc('estado');
   docRef={set:b=>ref.set(b)};
   ref.onSnapshot(async snap=>{
@@ -628,7 +674,7 @@ render();
     const data=snap.data();const j=JSON.stringify(data);
     if(real&&j===lastSavedJson)return;
     lastSavedJson=j;real=panCiabattas(empaqueCiabattas(precioCiabattas(recetasCiabattas(agregarCiabattas(agregar456(migrar(norm(clone(data)))))))));if(migrated){migrated=false;lastEdit=Date.now();scheduleSave()}setStatus('Guardado');render();
-  },()=>setStatus('No se pudo conectar con la base. Revisá la conexión y recargá.',true));
+  },e=>{loaded=true;fallo((e&&e.code==='permission-denied')?'Firebase rechazó el acceso: faltan las reglas para la colección costeo.':'Error: '+(e&&(e.code||e.message)||e))});
 })();
 </script>
 
