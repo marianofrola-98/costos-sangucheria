@@ -128,6 +128,11 @@ input[type=range]{width:100%;padding:0;border:0;background:transparent;accent-co
 .totals .v.big{font-size:24px}
 .row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
 .grow{flex:1 1 220px;min-width:0}
+.kd{font-size:12px;color:var(--muted)}
+.simbox{background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:3px;font-size:13px}
+.tbl.obj{min-width:0}
+.tbl.obj td.nm2{display:flex;flex-direction:column;gap:1px}
+.tbl.obj td,.tbl.obj th{padding:6px 6px}
 .tbl td.gh{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:750;padding-top:18px;border-bottom:1px solid var(--line)}
 .tbl tr.grp:first-child td.gh{padding-top:8px}
 @media (max-width:620px){.tbl.res tr.grp{display:block;padding:14px 0 0;border:0}.tbl.res td.gh{display:block;padding-bottom:6px}}
@@ -199,6 +204,9 @@ input[type=range]{width:100%;padding:0;border:0;background:transparent;accent-co
   .totals .v,.totals .v.big{font-size:15px}
   .hint{font-size:12px}
   .ins .tbl td{padding-top:3px;padding-bottom:3px}
+  .tbl.obj td,.tbl.obj th{padding:5px 4px;font-size:12px}
+  .tbl.obj th{font-size:10px;letter-spacing:.03em;white-space:normal}
+  .kd{font-size:11px}
   .ins .hint{display:none}
   .c-por{width:54px}.c-pre{width:84px}.c-del{width:24px}
   .ins td select{padding-left:4px;padding-right:2px}
@@ -350,6 +358,8 @@ function panCiabattas(st){
   st.sanguches.filter(x=>catOf(x)==='ciabatta').forEach(x=>{const ls=x.variantes.M.lineas;if(!ls.some(l=>l.ref==='i:pan_ciabatta'))ls.unshift({ref:'i:pan_ciabatta',qty:1})});
   st.migraciones.push('panCiab');migrated=true;return st;
 }
+
+function objetivo35(st){if(st.migraciones.includes('obj35'))return st;st.fcObjetivo=35;st.migraciones.push('obj35');migrated=true;return st}
 /* ---------- cálculos ---------- */
 const findI=(st,id)=>st.insumos.find(x=>x.id===id);
 const findP=(st,id)=>st.preps.find(x=>x.id===id);
@@ -372,7 +382,7 @@ function unitOf(st,ref){
   if(i&&i.tipo==='kg')return{lab:'g',step:1,def:50};
   return{lab:'u',step:0.001,def:1};
 }
-function fcClass(r,st){const o=0.40;return r>o+0.10?'crit':r>o+0.05?'warn':'ok'}
+function fcClass(r,st){const o=(st.fcObjetivo||35)/100;return r>o+0.10?'crit':r>o?'warn':'ok'}
 function usos(st,ref){
   const n=[];
   st.sanguches.forEach(s=>['M','XL'].forEach(z=>{if(s.variantes[z].lineas.some(l=>l.ref===ref))n.push(s.nombre+' '+z)}));
@@ -439,7 +449,7 @@ function numInput(id,get,set,cls='num'){
 }
 
 /* ---------- render ---------- */
-const TABS=[['sanguches','Sanguches'],['insumos','Insumos'],['empaque','Empaque']];
+const TABS=[['sanguches','Sanguches'],['insumos','Insumos'],['empaque','Empaque'],['objetivo','Objetivo']];
 function render(){
   outs=[];
   if(!TABS.some(t=>t[0]===ui.tab))ui.tab='sanguches';
@@ -450,7 +460,7 @@ function render(){
   if(!real){main.append(loaded?emptyState():h('p',{class:'empty'},'Cargando tus datos…'));return}
   const box=h('div',{class:'stack'});
   if(sim)box.append(simBar());
-  box.append(({sanguches:vSang,insumos:vInsumos,empaque:vEmpaque}[ui.tab]||vSang)());
+  box.append(({sanguches:vSang,insumos:vInsumos,empaque:vEmpaque,objetivo:vObjetivo}[ui.tab]||vSang)());
   main.append(box);
 }
 function emptyState(){
@@ -513,7 +523,7 @@ function vResumen(){
   }))});
   card.append(h('div',{class:'scroll'},h('table',{class:'tbl res'},
     h('thead',null,h('tr',null,h('th',null,'Sanguche'),h('th',{class:'r'},'Receta'),h('th',{class:'r'},'Costo total'),h('th',{class:'r'},'Food cost'),h('th',{class:'r'},'Precio venta'),h('th',{class:'r'},'Margen'))),tb)));
-  card.append(h('p',{class:'legend'},'Food cost: verde hasta 45%, amarillo hasta 50%, rojo por encima.'));
+  card.append(h('p',{class:'legend'},'Food cost: verde hasta el objetivo, amarillo hasta 10 puntos arriba, rojo por encima.'));
   return card;
 }
 
@@ -633,6 +643,74 @@ function vInsumos(){
       h('thead',null,h('tr',null,h('th',null,'Insumo'),h('th',{class:'c-por'},'Por'),h('th',{class:'c-pre'},'Precio'),h('th',{class:'c-del'},''))),tb)));
 }
 
+
+/* ---------- Objetivo ---------- */
+function productos(st,cat){
+  const r=[];
+  st.sanguches.filter(x=>!cat||catOf(x)===cat).forEach(s=>(catOf(s)==='ciabatta'?['M']:['M','XL']).forEach(z=>{
+    const v=s.variantes[z];if(!(v.precio>0))return;
+    r.push({s,z,precio:v.precio,lineas:[...v.lineas,...empLines(st,s)],costo:totalCost(st,s,z)});
+  }));
+  return r;
+}
+function fcProm(st,cat){const ps=productos(st,cat);return ps.length?ps.reduce((a,p)=>a+p.costo/p.precio,0)/ps.length:0}
+function aportes(st,cat){
+  const ps=productos(st,cat),m={};
+  ps.forEach(p=>p.lineas.forEach(l=>{const c=lineCost(st,l)/p.precio/ps.length;if(!c)return;const k=l.ref;(m[k]=m[k]||{ref:k,pts:0,usos:new Set()}).pts+=c;m[k].usos.add(p.s.id)}));
+  return Object.values(m).sort((a,b)=>b.pts-a.pts);
+}
+const pp=r=>(r*100).toFixed(1).replace('.',',')+'%';
+const pts=r=>(r*100).toFixed(1).replace('.',',');
+function vObjetivo(){
+  const st=cur();
+  const obj=(st.fcObjetivo||35)/100;
+  const cat=ui.objCat==='ciabatta'||ui.objCat==='focaccia'?ui.objCat:'';
+  const kpi=(lab,c)=>{const f=fcProm(st,c),n=productos(st,c).length,gap=f-obj;
+    return h('div',null,h('span',{class:'k'},lab),h('span',{class:'v big '+fcClass(f,st)},pp(f)),
+      h('span',{class:'kd'},n?(gap<=0?'En objetivo':'Faltan '+pts(gap)+' pts'):'Sin datos'))};
+  const objIn=h('input',{id:'obj-in',class:'num sm',inputmode:'decimal',value:fq(st.fcObjetivo||35),'aria-label':'Objetivo de food cost'});
+  objIn.addEventListener('change',()=>{const v=parseNum(objIn.value);if(v>0&&v<100){st.fcObjetivo=v;edit()}render()});
+  const head=h('div',{class:'card stack'},
+    h('div',{class:'row'},h('h2',null,'Food cost promedio'),h('label',{class:'fld',for:'obj-in'},'Objetivo',objIn,'%')),
+    h('div',{class:'totals'},kpi('Ciabattas','ciabatta'),kpi('Focaccias','focaccia'),kpi('Todos','')),
+    h('p',{class:'hint'},'Promedio simple de cada sanguche con precio de venta, empaque incluido. Las focaccias cuentan M y XL por separado.'));
+
+  const f=fcProm(st,cat),gap=f-obj,ap=aportes(st,cat);
+  const rows=ap.slice(0,12).map(a=>{
+    const [k,id]=a.ref.split(':');const i=findI(st,id);const name=i?i.nombre:'(borrado)';
+    const b10=a.pts*0.10;
+    return h('tr',null,h('td',{class:'nm2'},h('span',{class:'ing'},name),h('span',{class:'kd'},a.usos.size+(a.usos.size===1?' sanguche':' sanguches'))),
+      h('td',{class:'r mono'},pts(a.pts)),
+      h('td',{class:'r mono'},'−'+pts(b10)));
+  });
+  let acc=0,topN=0;for(const a of ap){acc+=a.pts;topN++;if(acc>=f*0.5)break}
+  const t5=ap.slice(0,5).reduce((x,a)=>x+a.pts,0),need5=gap>0&&t5>0?gap/t5:0;
+  const sim=h('div',{class:'simbox'},
+    h('strong',null,'Si bajás los 5 primeros insumos'),
+    h('div',null,'un 10%: el promedio queda en '+pp(f-t5*0.10)),
+    h('div',null,'un 20%: el promedio queda en '+pp(f-t5*0.20)),
+    gap>0?h('div',null,need5<1?'Para llegar a '+pp(obj)+' solo con esos 5, tendrían que bajar un '+Math.ceil(need5*100)+'%.':'Con esos 5 solos no se llega a '+pp(obj)+': hace falta combinar con otros insumos o con precio.'):null);
+  const rank=h('div',{class:'card stack'},
+    h('div',{class:'row'},h('h2',null,'Qué insumos pesan más'),seg([['','Todos'],['ciabatta','Ciabattas'],['focaccia','Focaccias']],cat,x=>{ui.objCat=x;saveUi();render()})),
+    h('p',{class:'hint'},gap>0
+      ?`Promedio ${pp(f)}: para llegar a ${pp(obj)} hay que bajar ${pts(gap)} puntos. Los primeros ${topN} insumos explican la mitad del food cost.`
+      :`Promedio ${pp(f)}: ya está en el objetivo de ${pp(obj)}.`),
+    ap.length?sim:null,
+    ap.length?h('div',{class:'scroll'},h('table',{class:'tbl obj'},
+      h('thead',null,h('tr',null,h('th',null,'Insumo'),h('th',{class:'r'},'Aporta'),h('th',{class:'r'},'Si baja 10%'))),
+      h('tbody',null,rows))):h('p',{class:'empty'},'No hay sanguches con precio en esta categoría.'),
+    h('p',{class:'legend'},'Aporta: puntos del food cost promedio que pone cada insumo, empaque incluido. Si baja 10%: cuántos puntos baja el promedio si ese insumo cuesta 10% menos o usás 10% menos cantidad.'));
+
+  const ps=productos(st,cat).map(p=>({...p,fc:p.costo/p.precio})).sort((a,b)=>b.fc-a.fc);
+  const lejos=h('div',{class:'card stack'},h('h2',null,'Sanguches más lejos del objetivo'),
+    h('div',{class:'scroll'},h('table',{class:'tbl obj'},
+      h('thead',null,h('tr',null,h('th',null,'Sanguche'),h('th',{class:'r'},'Food cost'),h('th',{class:'r'},'Faltan'))),
+      h('tbody',null,ps.map(p=>h('tr',null,
+        h('td',null,h('button',{type:'button',class:'chip',style:'padding:2px 9px;font-size:12px',onclick:()=>{ui.tab='sanguches';ui.cat=catOf(p.s);ui.sang=p.s.id;ui.size=p.z;saveUi();render()}},p.s.nombre+(catOf(p.s)==='ciabatta'?'':' '+p.z))),
+        h('td',{class:'r mono '+fcClass(p.fc,st)},pp(p.fc)),
+        h('td',{class:'r mono'},p.fc<=obj?'—':pts(p.fc-obj)+' pts')))))));
+  return h('div',{class:'stack'},head,rank,lejos);
+}
 /* ---------- Empaque ---------- */
 function vEmpaque(){
   const st=cur();
@@ -653,7 +731,7 @@ render();
     const KEY='costos-estado';
     let d=null;try{d=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){}
     if(!d){try{d=await (await fetch('datos-iniciales.json')).json()}catch(e){d=EMPTY()}}
-    real=panCiabattas(empaqueCiabattas(precioCiabattas(recetasCiabattas(agregarCiabattas(agregar456(migrar(norm(d))))))));if(migrated){migrated=false;scheduleSave()}loaded=true;
+    real=objetivo35(panCiabattas(empaqueCiabattas(precioCiabattas(recetasCiabattas(agregarCiabattas(agregar456(migrar(norm(d)))))))));if(migrated){migrated=false;scheduleSave()}loaded=true;
     docRef={set:async b=>{localStorage.setItem(KEY,JSON.stringify(b))}};
     setStatus('Guardado solo en este dispositivo',true);render();return;
   }
@@ -668,12 +746,12 @@ render();
     if(dirty||saving||Date.now()-lastEdit<1500)return;
     const first=!loaded;loaded=true;
     if(!snap.exists){
-      if(first){try{const d=await (await fetch('datos-iniciales.json')).json();real=panCiabattas(empaqueCiabattas(precioCiabattas(recetasCiabattas(agregarCiabattas(agregar456(migrar(norm(d))))))));if(migrated){migrated=false;scheduleSave()}await ref.set(clone(real));setStatus('Guardado')}catch(e){real=EMPTY()}render()}
+      if(first){try{const d=await (await fetch('datos-iniciales.json')).json();real=objetivo35(panCiabattas(empaqueCiabattas(precioCiabattas(recetasCiabattas(agregarCiabattas(agregar456(migrar(norm(d)))))))));if(migrated){migrated=false;scheduleSave()}await ref.set(clone(real));setStatus('Guardado')}catch(e){real=EMPTY()}render()}
       return;
     }
     const data=snap.data();const j=JSON.stringify(data);
     if(real&&j===lastSavedJson)return;
-    lastSavedJson=j;real=panCiabattas(empaqueCiabattas(precioCiabattas(recetasCiabattas(agregarCiabattas(agregar456(migrar(norm(clone(data)))))))));if(migrated){migrated=false;lastEdit=Date.now();scheduleSave()}setStatus('Guardado');render();
+    lastSavedJson=j;real=objetivo35(panCiabattas(empaqueCiabattas(precioCiabattas(recetasCiabattas(agregarCiabattas(agregar456(migrar(norm(clone(data))))))))));if(migrated){migrated=false;lastEdit=Date.now();scheduleSave()}setStatus('Guardado');render();
   },e=>{loaded=true;fallo((e&&e.code==='permission-denied')?'Firebase rechazó el acceso: faltan las reglas para la colección costeo.':'Error: '+(e&&(e.code||e.message)||e))});
 })();
 </script>
